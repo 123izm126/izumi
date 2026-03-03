@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Shooting Challenge Pro</title>
+    <title>Shooting Challenge Gold</title>
     <style>
         :root {
             --primary: #38bdf8;
             --accent: #fb7185;
             --warning: #fbbf24;
+            --danger: #ef4444;
         }
 
         body {
@@ -33,7 +34,7 @@
             top: 20px;
             left: 20px;
             right: 20px;
-            z-index: 10;
+            z-index: 100;
             display: flex;
             justify-content: space-between;
             pointer-events: none;
@@ -42,23 +43,28 @@
         .stat {
             font-size: 1.2rem;
             font-weight: bold;
-            background: rgba(15, 23, 42, 0.7);
+            background: rgba(15, 23, 42, 0.8);
             padding: 8px 16px;
             border-radius: 12px;
             border: 1px solid rgba(255,255,255,0.1);
+            display: inline-block;
+            min-width: 100px;
         }
 
-        /* ポーズボタン */
+        /* 一時停止ボタン（ターゲット出現禁止エリア） */
         #pause-btn {
             pointer-events: auto;
-            background: rgba(255,255,255,0.2);
-            border: none;
+            background: #334155;
+            border: 2px solid rgba(255,255,255,0.2);
             color: white;
-            padding: 8px 15px;
-            border-radius: 8px;
+            padding: 10px 20px;
+            border-radius: 12px;
             cursor: pointer;
             font-weight: bold;
+            font-size: 1rem;
+            transition: background 0.2s;
         }
+        #pause-btn:hover { background: #475569; }
 
         /* 中央カウントダウン */
         #central-countdown {
@@ -75,7 +81,7 @@
             text-shadow: 0 0 30px rgba(251, 191, 36, 0.5);
         }
 
-        /* オーバーレイ（メニュー・ポーズ） */
+        /* オーバーレイ */
         .overlay {
             position: absolute;
             inset: 0;
@@ -84,7 +90,7 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 100;
+            z-index: 200;
             text-align: center;
         }
 
@@ -115,223 +121,4 @@
             background: #1e293b; padding: 20px; border-radius: 16px;
             border: 2px solid transparent; cursor: pointer; width: 140px;
         }
-        .mode-card:hover { border-color: var(--primary); }
-
-        /* ターゲット */
-        .target {
-            position: absolute;
-            width: 60px; height: 60px;
-            background: radial-gradient(circle, var(--accent) 10%, #be123c 90%);
-            border-radius: 50%; border: 3px solid #fff;
-            box-shadow: 0 0 20px rgba(225, 29, 72, 0.4);
-        }
-
-        .hidden { display: none !important; }
-        
-        /* カウントダウンアニメーション */
-        .ping {
-            animation: ping-anim 0.5s ease-out forwards;
-        }
-        @keyframes ping-anim {
-            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-            50% { opacity: 1; }
-            100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
-        }
-    </style>
-</head>
-<body>
-
-<div id="game-container">
-    <div id="ui" class="hidden">
-        <div>
-            <div class="stat">Time: <span id="timer">60</span>s</div>
-            <div class="stat">Score: <span id="score">0</span></div>
-        </div>
-        <button id="pause-btn">一時停止</button>
-    </div>
-
-    <div id="central-countdown"></div>
-
-    <div id="menu-overlay" class="overlay">
-        <h1 id="title">Shooting Challenge</h1>
-        <p id="message">モードを選択してスタート</p>
-        <div class="mode-container">
-            <div class="mode-card" onclick="initGame('cursor')">
-                <h3>カーソル</h3>
-                <p>5秒表示<br>PC向け</p>
-            </div>
-            <div class="mode-card" onclick="initGame('tap')">
-                <h3>タップ</h3>
-                <p>2秒表示<br>スマホ向け</p>
-            </div>
-        </div>
-    </div>
-
-    <div id="pause-overlay" class="overlay hidden">
-        <h1>PAUSED</h1>
-        <div class="btn-group">
-            <button class="menu-btn primary-btn" onclick="resumeGame()">ゲームを再開</button>
-            <button class="menu-btn secondary-btn" onclick="backToMenu()">タイトルに戻る</button>
-        </div>
-    </div>
-</div>
-
-<script>
-    const container = document.getElementById('game-container');
-    const scoreElement = document.getElementById('score');
-    const timerElement = document.getElementById('timer');
-    const centralCountdown = document.getElementById('central-countdown');
-    
-    const menuOverlay = document.getElementById('menu-overlay');
-    const pauseOverlay = document.getElementById('pause-overlay');
-    const ui = document.getElementById('ui');
-
-    let score = 0;
-    let timeLeft = 60;
-    let gameActive = false;
-    let isPaused = false;
-    let targetLifeTime = 5000;
-    let spawnTimer, clockTimer;
-
-    // ゲーム初期化
-    function initGame(mode) {
-        targetLifeTime = (mode === 'cursor') ? 5000 : 2000;
-        container.style.cursor = (mode === 'cursor') ? 'crosshair' : 'default';
-        
-        score = 0;
-        timeLeft = 60;
-        scoreElement.textContent = score;
-        timerElement.textContent = timeLeft;
-        
-        menuOverlay.classList.add('hidden');
-        ui.classList.remove('hidden');
-        
-        startGameLoop();
-    }
-
-    // ループ開始
-    function startGameLoop() {
-        gameActive = true;
-        isPaused = false;
-        
-        // ターゲット生成
-        spawnTimer = setInterval(() => {
-            if (gameActive && !isPaused) createTarget();
-        }, 800);
-
-        // タイマー
-        clockTimer = setInterval(() => {
-            if (gameActive && !isPaused) {
-                timeLeft--;
-                timerElement.textContent = timeLeft;
-                
-                // 残り10秒以下のカウントダウン演出
-                if (timeLeft <= 10 && timeLeft > 0) {
-                    showCentralCountdown(timeLeft);
-                }
-
-                if (timeLeft <= 0) endGame();
-            }
-        }, 1000);
-    }
-
-    // ターゲット作成
-    function createTarget() {
-        const target = document.createElement('div');
-        target.classList.add('target');
-        const x = Math.random() * (window.innerWidth - 80) + 10;
-        const y = Math.random() * (window.innerHeight - 80) + 10;
-        target.style.left = `${x}px`;
-        target.style.top = `${y}px`;
-
-        const anim = target.animate([
-            { transform: 'scale(1)', opacity: 1 },
-            { transform: 'scale(0.5)', opacity: 0 }
-        ], { duration: targetLifeTime });
-
-        const timeout = setTimeout(() => {
-            if (target.parentNode) target.remove();
-        }, targetLifeTime);
-
-        // ポーズ時にアニメーションを止めるための処理
-        target.dataset.timeoutId = timeout;
-        target.dataset.startTime = Date.now();
-
-        const hitHandler = (e) => {
-            if (!gameActive || isPaused) return;
-            e.preventDefault();
-            clearTimeout(timeout);
-            const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-            const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
-            createExplosion(clientX, clientY);
-            target.remove();
-            score += 100;
-            scoreElement.textContent = score;
-        };
-
-        target.addEventListener('mousedown', hitHandler);
-        target.addEventListener('touchstart', hitHandler, {passive: false});
-        container.appendChild(target);
-    }
-
-    // 中央カウントダウン表示
-    function showCentralCountdown(num) {
-        centralCountdown.textContent = num;
-        centralCountdown.classList.remove('ping');
-        void centralCountdown.offsetWidth; // reflow
-        centralCountdown.classList.add('ping');
-    }
-
-    // ポーズ機能
-    function pauseGame() {
-        if (!gameActive) return;
-        isPaused = true;
-        pauseOverlay.classList.remove('hidden');
-        // 既存ターゲットのアニメーション停止（簡易版として今回は全消去）
-        document.querySelectorAll('.target').forEach(t => t.classList.add('hidden'));
-    }
-
-    function resumeGame() {
-        isPaused = false;
-        pauseOverlay.classList.add('hidden');
-        document.querySelectorAll('.target').forEach(t => t.classList.remove('hidden'));
-    }
-
-    function backToMenu() {
-        endGame();
-        menuOverlay.classList.remove('hidden');
-        document.getElementById('title').textContent = "Shooting Challenge";
-        document.getElementById('message').textContent = "モードを選択してスタート";
-    }
-
-    function endGame() {
-        gameActive = false;
-        clearInterval(spawnTimer);
-        clearInterval(clockTimer);
-        document.querySelectorAll('.target').forEach(t => t.remove());
-        ui.classList.add('hidden');
-        pauseOverlay.classList.add('hidden');
-        
-        menuOverlay.classList.remove('hidden');
-        document.getElementById('title').textContent = "Finish!";
-        document.getElementById('message').textContent = `Score: ${score}`;
-    }
-
-    function createExplosion(x, y) {
-        for (let i = 0; i < 10; i++) {
-            const p = document.createElement('div');
-            p.style.cssText = `position:absolute; width:6px; height:6px; background:var(--accent); border-radius:50%; left:${x}px; top:${y}px; pointer-events:none;`;
-            const angle = Math.random() * Math.PI * 2;
-            const dist = Math.random() * 80;
-            p.animate([
-                { transform: 'translate(0, 0)', opacity: 1 },
-                { transform: `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist}px)`, opacity: 0 }
-            ], { duration: 400 }).onfinish = () => p.remove();
-            container.appendChild(p);
-        }
-    }
-
-    document.getElementById('pause-btn').addEventListener('click', pauseGame);
-</script>
-</body>
-</html>
+        .mode-
