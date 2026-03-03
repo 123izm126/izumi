@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Target Challenge Gold - Fixed</title>
+    <title>Target Challenge Gold - Final</title>
     <style>
         :root {
             --primary: #38bdf8;
@@ -42,6 +42,10 @@
             pointer-events: none;
         }
 
+        .stat-group {
+            pointer-events: auto; /* ここも当たり判定の計算に使うため明示 */
+        }
+
         .stat {
             font-size: 1.2rem;
             font-weight: bold;
@@ -51,6 +55,7 @@
             border: 1px solid rgba(255,255,255,0.1);
             display: inline-block;
             min-width: 100px;
+            margin-bottom: 5px;
         }
 
         #pause-btn {
@@ -63,6 +68,7 @@
             cursor: pointer;
             font-weight: bold;
             font-size: 1rem;
+            height: fit-content;
         }
 
         #central-countdown {
@@ -78,7 +84,6 @@
             z-index: 50;
         }
 
-        /* オーバーレイ（これが最初に見えるはず） */
         .overlay {
             position: absolute;
             top: 0;
@@ -127,8 +132,8 @@
 
 <div id="game-container">
     <div id="ui" class="hidden">
-        <div>
-            <div class="stat">Time: <span id="timer">60</span>s</div>
+        <div id="left-ui" class="stat-group">
+            <div class="stat">Time: <span id="timer">60</span>s</div><br>
             <div class="stat">Score: <span id="score">0</span></div>
         </div>
         <button id="pause-btn">一時停止</button>
@@ -138,15 +143,15 @@
 
     <div id="menu-overlay" class="overlay">
         <h1 id="title">Target Challenge</h1>
-        <p id="message">ミスは-50点！慎重に狙え！</p>
+        <p id="message">ミスは-50点！UIを避けて出現します</p>
         <div class="mode-container">
             <div class="mode-card" id="mode-cursor">
                 <h3>カーソル</h3>
-                <p>5秒表示<br>PC向け</p>
+                <p>5秒表示<br>間隔: 0.8秒</p>
             </div>
             <div class="mode-card" id="mode-tap">
                 <h3>タップ</h3>
-                <p>2秒表示<br>スマホ向け</p>
+                <p>2秒表示<br>間隔: 0.5秒</p>
             </div>
         </div>
     </div>
@@ -162,12 +167,12 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // 要素の取得
     const container = document.getElementById('game-container');
     const scoreElement = document.getElementById('score');
     const timerElement = document.getElementById('timer');
     const centralCountdown = document.getElementById('central-countdown');
     const pauseBtn = document.getElementById('pause-btn');
+    const leftUi = document.getElementById('left-ui');
     const menuOverlay = document.getElementById('menu-overlay');
     const pauseOverlay = document.getElementById('pause-overlay');
     const ui = document.getElementById('ui');
@@ -177,12 +182,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let gameActive = false;
     let isPaused = false;
     let targetLifeTime = 5000;
+    let spawnRate = 800; 
     let spawnTimer, clockTimer;
 
-    // ゲーム開始処理
     window.initGame = (mode) => {
-        targetLifeTime = (mode === 'cursor') ? 5000 : 2000;
-        container.style.cursor = (mode === 'cursor') ? 'crosshair' : 'default';
+        if (mode === 'cursor') {
+            targetLifeTime = 5000;
+            spawnRate = 800;
+            container.style.cursor = 'crosshair';
+        } else {
+            targetLifeTime = 2000;
+            spawnRate = 500; // タップモードは間隔を短く
+            container.style.cursor = 'default';
+        }
+        
         score = 0;
         timeLeft = 60;
         updateScore(0);
@@ -200,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         spawnTimer = setInterval(() => {
             if (gameActive && !isPaused) createTarget();
-        }, 800);
+        }, spawnRate);
 
         clockTimer = setInterval(() => {
             if (gameActive && !isPaused) {
@@ -216,16 +229,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const target = document.createElement('div');
         target.classList.add('target');
         const targetSize = 60;
-        const btnRect = pauseBtn.getBoundingClientRect();
+        const margin = 20;
+        
+        // 避けるべきUI要素のリスト
+        const rectsToAvoid = [
+            leftUi.getBoundingClientRect(),
+            pauseBtn.getBoundingClientRect()
+        ];
         
         let x, y, isOverlapping, attempts = 0;
         do {
             x = Math.random() * (window.innerWidth - targetSize - 40) + 20;
             y = Math.random() * (window.innerHeight - targetSize - 40) + 20;
-            isOverlapping = (x < btnRect.right + 20 && x + targetSize > btnRect.left - 20 &&
-                             y < btnRect.bottom + 20 && y + targetSize > btnRect.top - 20);
+            
+            isOverlapping = rectsToAvoid.some(rect => {
+                return (x < rect.right + margin && x + targetSize > rect.left - margin &&
+                        y < rect.bottom + margin && y + targetSize > rect.top - margin);
+            });
             attempts++;
-        } while (isOverlapping && attempts < 10);
+        } while (isOverlapping && attempts < 15);
 
         target.style.left = `${x}px`;
         target.style.top = `${y}px`;
@@ -297,7 +319,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // イベントリスナーの設定
     document.getElementById('mode-cursor').onclick = () => initGame('cursor');
     document.getElementById('mode-tap').onclick = () => initGame('tap');
     pauseBtn.onclick = () => {
@@ -313,7 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('back-btn').onclick = () => {
         endGame();
         document.getElementById('title').textContent = "Target Challenge";
-        document.getElementById('message').textContent = "ミスは-50点！慎重に狙え！";
+        document.getElementById('message').textContent = "ミスは-50点！UIを避けて出現します";
     };
 });
 </script>
