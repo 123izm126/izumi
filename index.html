@@ -2,155 +2,275 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Target Shooter</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mode Select Shooter</title>
     <style>
-        /* CSS: ゲームの見た目 */
+        :root {
+            --primary: #38bdf8;
+            --accent: #fb7185;
+        }
+
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #1a1a2e;
-            font-family: 'Arial', sans-serif;
+            background-color: #0f172a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: white;
             user-select: none;
+            touch-action: manipulation;
         }
 
         #game-container {
             position: relative;
             width: 100vw;
             height: 100vh;
-            cursor: crosshair;
         }
 
+        /* UI表示 */
         #ui {
             position: absolute;
-            top: 20px;
+            top: env(safe-area-inset-top, 20px);
             left: 20px;
+            z-index: 10;
             pointer-events: none;
         }
 
         .stat {
-            font-size: 24px;
-            margin-bottom: 5px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            font-size: 1.2rem;
+            font-weight: bold;
+            background: rgba(15, 23, 42, 0.7);
+            padding: 8px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 8px;
+            display: inline-block;
         }
 
-        /* ターゲットのスタイル */
+        /* モード選択・リザルト画面 */
+        #overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(7, 10, 20, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            padding: 20px;
+            text-align: center;
+        }
+
+        h1 { font-size: 2.5rem; margin-bottom: 0.5rem; color: var(--primary); }
+        .description { margin-bottom: 2rem; color: #94a3b8; }
+
+        .mode-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .mode-card {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 16px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 160px;
+        }
+
+        .mode-card:hover {
+            border-color: var(--primary);
+            background: #334155;
+            transform: translateY(-5px);
+        }
+
+        .mode-card h3 { margin: 0 0 10px 0; color: #f1f5f9; }
+        .mode-card p { font-size: 0.8rem; margin: 0; color: #94a3b8; }
+
+        /* ターゲット */
         .target {
             position: absolute;
-            width: 50px;
-            height: 50px;
-            background: radial-gradient(circle, #ff4d4d 20%, #b30000 80%);
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(circle, var(--accent) 10%, #be123c 90%);
             border-radius: 50%;
-            border: 2px solid white;
-            box-shadow: 0 0 15px rgba(255, 77, 77, 0.6);
-            cursor: pointer;
-            transition: transform 0.1s;
+            border: 3px solid #fff;
+            box-shadow: 0 0 20px rgba(225, 29, 72, 0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 0.8rem;
         }
 
-        .target:active {
-            transform: scale(0.8);
-        }
-
-        /* エフェクト */
         .particle {
             position: absolute;
-            width: 5px;
-            height: 5px;
-            background-color: #ff4d4d;
-            pointer-events: none;
+            width: 6px;
+            height: 6px;
+            background-color: var(--accent);
             border-radius: 50%;
+            pointer-events: none;
         }
+
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    <div id="ui">
-        <div class="stat">スコア: <span id="score">0</span></div>
-        <div class="stat">ミス: <span id="miss">0</span></div>
+    <div id="ui" class="hidden">
+        <div class="stat">Time: <span id="timer">60</span>s</div><br>
+        <div class="stat">Score: <span id="score">0</span></div>
+    </div>
+
+    <div id="overlay">
+        <h1 id="title">Shooting Challenge</h1>
+        <p id="message" class="description">デバイスに合わせてモードを選択してください</p>
+        
+        <div id="mode-selection" class="mode-container">
+            <div class="mode-card" onclick="startGame('cursor')">
+                <h3>カーソル</h3>
+                <p>表示: 5秒<br>PC向け</p>
+            </div>
+            <div class="mode-card" onclick="startGame('tap')">
+                <h3>タップ</h3>
+                <p>表示: 2秒<br>スマホ向け</p>
+            </div>
+        </div>
+
+        <button id="retry-btn" class="hidden" style="margin-top: 20px; padding: 12px 30px; border-radius: 30px; border:none; background: var(--primary); color:white; font-weight:bold; cursor:pointer;">
+            もう一度プレイ
+        </button>
     </div>
 </div>
 
 <script>
-    // JavaScript: ゲームのロジック
     const container = document.getElementById('game-container');
     const scoreElement = document.getElementById('score');
-    const missElement = document.getElementById('miss');
+    const timerElement = document.getElementById('timer');
+    const overlay = document.getElementById('overlay');
+    const modeSelection = document.getElementById('mode-selection');
+    const retryBtn = document.getElementById('retry-btn');
+    const ui = document.getElementById('ui');
 
     let score = 0;
-    let misses = 0;
-    const spawnRate = 1000; // ターゲットが出る間隔 (ミリ秒)
+    let timeLeft = 60;
+    let gameActive = false;
+    let targetLifeTime = 5000; // デフォルト5秒
+    let spawnInterval, countdownInterval;
 
-    // ターゲットを生成する関数
+    function startGame(mode) {
+        // モード設定
+        if (mode === 'cursor') {
+            targetLifeTime = 5000;
+            container.style.cursor = 'crosshair';
+        } else {
+            targetLifeTime = 2000;
+            container.style.cursor = 'default';
+        }
+
+        // 初期化
+        score = 0;
+        timeLeft = 60;
+        gameActive = true;
+        scoreElement.textContent = score;
+        timerElement.textContent = timeLeft;
+        
+        overlay.classList.add('hidden');
+        ui.classList.remove('hidden');
+
+        // ゲームループ
+        spawnInterval = setInterval(() => {
+            if (gameActive) createTarget();
+        }, 700);
+
+        countdownInterval = setInterval(() => {
+            timeLeft--;
+            timerElement.textContent = timeLeft;
+            if (timeLeft <= 0) endGame();
+        }, 1000);
+    }
+
     function createTarget() {
         const target = document.createElement('div');
         target.classList.add('target');
 
-        // ランダムな位置を計算
-        const x = Math.random() * (window.innerWidth - 60);
-        const y = Math.random() * (window.innerHeight - 60);
-        
+        // 画面端で切れないように配置
+        const x = Math.random() * (window.innerWidth - 80) + 10;
+        const y = Math.random() * (window.innerHeight - 80) + 10;
         target.style.left = `${x}px`;
         target.style.top = `${y}px`;
 
-        // 一定時間で消える（ミス判定）
-        const timeout = setTimeout(() => {
-            if (target.parentNode) {
-                target.remove();
-                misses++;
-                missElement.textContent = misses;
-            }
-        }, 2000); // 2秒以内に撃たないと消える
+        // 制限時間の視覚化（おまけ：少しずつ小さくなる）
+        target.animate([
+            { transform: 'scale(1)', opacity: 1 },
+            { transform: 'scale(0.5)', opacity: 0.5 }
+        ], { duration: targetLifeTime });
 
-        // クリックイベント
-        target.addEventListener('mousedown', (e) => {
-            e.stopPropagation(); // 重なりによる多重クリック防止
+        const timeout = setTimeout(() => {
+            if (target.parentNode) target.remove();
+        }, targetLifeTime);
+
+        // クリック/タップイベント
+        const hitHandler = (e) => {
+            if (!gameActive) return;
+            e.preventDefault();
+            e.stopPropagation();
+            
             clearTimeout(timeout);
-            createExplosion(e.clientX, e.clientY);
+            
+            // 座標取得（マウスとタッチ両対応）
+            const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+            const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+            
+            createExplosion(clientX, clientY);
             target.remove();
-            score += 10;
+            
+            score += 100;
             scoreElement.textContent = score;
-        });
+        };
+
+        target.addEventListener('mousedown', hitHandler);
+        target.addEventListener('touchstart', hitHandler, {passive: false});
 
         container.appendChild(target);
     }
 
-    // 撃破時のパーティクルエフェクト
     function createExplosion(x, y) {
-        for (let i = 0; i < 8; i++) {
-            const particle = document.createElement('div');
-            particle.classList.add('particle');
-            particle.style.left = `${x}px`;
-            particle.style.top = `${y}px`;
+        for (let i = 0; i < 12; i++) {
+            const p = document.createElement('div');
+            p.classList.add('particle');
+            p.style.left = `${x}px`;
+            p.style.top = `${y}px`;
             
             const angle = Math.random() * Math.PI * 2;
-            const velocity = Math.random() * 50 + 50;
-            const dx = Math.cos(angle) * velocity;
-            const dy = Math.sin(angle) * velocity;
-
-            container.appendChild(particle);
-
-            particle.animate([
-                { transform: 'translate(0, 0)', opacity: 1 },
-                { transform: `translate(${dx}px, ${dy}px)`, opacity: 0 }
-            ], {
-                duration: 500,
-                easing: 'ease-out'
-            }).onfinish = () => particle.remove();
+            const dist = Math.random() * 100 + 20;
+            
+            p.animate([
+                { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+                { transform: `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist}px) scale(0)`, opacity: 0 }
+            ], { duration: 500, easing: 'ease-out' }).onfinish = () => p.remove();
+            
+            container.appendChild(p);
         }
     }
 
-    // 一定間隔でターゲットを生成
-    setInterval(createTarget, spawnRate);
+    function endGame() {
+        gameActive = false;
+        clearInterval(spawnInterval);
+        clearInterval(countdownInterval);
+        
+        document.querySelectorAll('.target').forEach(t => t.remove());
 
-    // 背景クリックでミス（任意で追加可能）
-    container.addEventListener('mousedown', (e) => {
-        if (e.target === container) {
-            // 背景を撃った時の処理が必要ならここに
-        }
-    });
-
+        document.getElementById('title').textContent = "Finish!";
+        document.getElementById('message').textContent = `Score: ${score}`;
+        modeSelection.classList.remove('hidden');
+        retryBtn.classList.add('hidden'); // モード選択に戻る形式
+        overlay.classList.remove('hidden');
+        ui.classList.add('hidden');
+    }
 </script>
 </body>
 </html>
