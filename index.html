@@ -1,2 +1,156 @@
-作成：2026/03/02 情報
-変更：2026/03/02 情報
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Target Shooter</title>
+    <style>
+        /* CSS: ゲームの見た目 */
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a2e;
+            font-family: 'Arial', sans-serif;
+            color: white;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            cursor: crosshair;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+        }
+
+        .stat {
+            font-size: 24px;
+            margin-bottom: 5px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        /* ターゲットのスタイル */
+        .target {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: radial-gradient(circle, #ff4d4d 20%, #b30000 80%);
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 15px rgba(255, 77, 77, 0.6);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .target:active {
+            transform: scale(0.8);
+        }
+
+        /* エフェクト */
+        .particle {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            background-color: #ff4d4d;
+            pointer-events: none;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="ui">
+        <div class="stat">スコア: <span id="score">0</span></div>
+        <div class="stat">ミス: <span id="miss">0</span></div>
+    </div>
+</div>
+
+<script>
+    // JavaScript: ゲームのロジック
+    const container = document.getElementById('game-container');
+    const scoreElement = document.getElementById('score');
+    const missElement = document.getElementById('miss');
+
+    let score = 0;
+    let misses = 0;
+    const spawnRate = 1000; // ターゲットが出る間隔 (ミリ秒)
+
+    // ターゲットを生成する関数
+    function createTarget() {
+        const target = document.createElement('div');
+        target.classList.add('target');
+
+        // ランダムな位置を計算
+        const x = Math.random() * (window.innerWidth - 60);
+        const y = Math.random() * (window.innerHeight - 60);
+        
+        target.style.left = `${x}px`;
+        target.style.top = `${y}px`;
+
+        // 一定時間で消える（ミス判定）
+        const timeout = setTimeout(() => {
+            if (target.parentNode) {
+                target.remove();
+                misses++;
+                missElement.textContent = misses;
+            }
+        }, 2000); // 2秒以内に撃たないと消える
+
+        // クリックイベント
+        target.addEventListener('mousedown', (e) => {
+            e.stopPropagation(); // 重なりによる多重クリック防止
+            clearTimeout(timeout);
+            createExplosion(e.clientX, e.clientY);
+            target.remove();
+            score += 10;
+            scoreElement.textContent = score;
+        });
+
+        container.appendChild(target);
+    }
+
+    // 撃破時のパーティクルエフェクト
+    function createExplosion(x, y) {
+        for (let i = 0; i < 8; i++) {
+            const particle = document.createElement('div');
+            particle.classList.add('particle');
+            particle.style.left = `${x}px`;
+            particle.style.top = `${y}px`;
+            
+            const angle = Math.random() * Math.PI * 2;
+            const velocity = Math.random() * 50 + 50;
+            const dx = Math.cos(angle) * velocity;
+            const dy = Math.sin(angle) * velocity;
+
+            container.appendChild(particle);
+
+            particle.animate([
+                { transform: 'translate(0, 0)', opacity: 1 },
+                { transform: `translate(${dx}px, ${dy}px)`, opacity: 0 }
+            ], {
+                duration: 500,
+                easing: 'ease-out'
+            }).onfinish = () => particle.remove();
+        }
+    }
+
+    // 一定間隔でターゲットを生成
+    setInterval(createTarget, spawnRate);
+
+    // 背景クリックでミス（任意で追加可能）
+    container.addEventListener('mousedown', (e) => {
+        if (e.target === container) {
+            // 背景を撃った時の処理が必要ならここに
+        }
+    });
+
+</script>
+</body>
+</html>
